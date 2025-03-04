@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Email System for Visually Impaired</title>
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .hidden {
+            display: none;
+        }
+        .active-section {
+            display: block;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .listening {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Login Section -->
+        <section id="login-section" class="active-section">
+            <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                <h1 class="text-3xl font-bold text-center mb-8">Voice Email System</h1>
+                <div id="g_id_onload"
+                     data-client_id="YOUR_GOOGLE_CLIENT_ID"
+                     data-callback="handleCredentialResponse">
+                </div>
+                <div class="flex justify-center mb-4">
+                    <button id="startButton" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        <i class="bi bi-mic-fill mr-2"></i>Start Voice Control
+                    </button>
+                </div>
+                <p id="instructions" class="text-center text-gray-600">Press the button and say "Login" to begin</p>
+            </div>
+        </section>
+
+        <!-- Main Menu Section -->
+        <section id="main-menu" class="hidden">
+            <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                <h2 class="text-2xl font-bold mb-6">Main Menu</h2>
+                <div class="space-y-4">
+                    <button class="w-full bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600" onclick="navigateTo('send-email')">Send Emails</button>
+                    <button class="w-full bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600" onclick="navigateTo('read-email')">Read Emails</button>
+                    <button class="w-full bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600" onclick="navigateTo('trash')">Trash Box</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Send Email Section -->
+        <section id="send-email" class="hidden">
+            <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                <h2 class="text-2xl font-bold mb-6">Send Email</h2>
+                <form id="emailForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700">Recipient Email:</label>
+                        <input type="email" id="recipient" class="w-full border rounded-lg px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700">Subject:</label>
+                        <input type="text" id="subject" class="w-full border rounded-lg px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700">Message:</label>
+                        <textarea id="message" class="w-full border rounded-lg px-3 py-2 h-32" required></textarea>
+                    </div>
+                    <div class="flex justify-between">
+                        <button type="submit" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600">Send</button>
+                        <button type="button" onclick="navigateTo('main-menu')" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">Back</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- Read Email Section -->
+        <section id="read-email" class="hidden">
+            <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                <h2 class="text-2xl font-bold mb-6">Read Emails</h2>
+                <div id="emailList" class="space-y-4">
+                    <!-- Email items will be populated here -->
+                </div>
+                <button onclick="navigateTo('main-menu')" class="mt-4 bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">Back</button>
+            </div>
+        </section>
+
+        <!-- Trash Section -->
+        <section id="trash" class="hidden">
+            <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                <h2 class="text-2xl font-bold mb-6">Trash Box</h2>
+                <div id="trashList" class="space-y-4">
+                    <!-- Trash items will be populated here -->
+                </div>
+                <button onclick="navigateTo('main-menu')" class="mt-4 bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">Back</button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let recognition;
+        let synthesis;
+        let currentSection = 'login-section';
+        
+        // Initialize speech recognition and synthesis
+        function initializeSpeech() {
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            synthesis = window.speechSynthesis;
+            
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = handleSpeechResult;
+            recognition.onerror = handleSpeechError;
+        }
+
+        // Handle speech recognition results
+        function handleSpeechResult(event) {
+            const last = event.results.length - 1;
+            const command = event.results[last][0].transcript.toLowerCase().trim();
+            
+            processVoiceCommand(command);
+        }
+
+        // Process voice commands
+        function processVoiceCommand(command) {
+            speak("You said: " + command);
+
+            switch(currentSection) {
+                case 'login-section':
+                    if (command.includes('login')) {
+                        // Simulate successful login
+                        navigateTo('main-menu');
+                    }
+                    break;
+                case 'main-menu':
+                    if (command.includes('send')) navigateTo('send-email');
+                    else if (command.includes('read')) navigateTo('read-email');
+                    else if (command.includes('trash')) navigateTo('trash');
+                    break;
+                case 'send-email':
+                    handleSendEmailCommands(command);
+                    break;
+                case 'read-email':
+                    handleReadEmailCommands(command);
+                    break;
+                case 'trash':
+                    handleTrashCommands(command);
+                    break;
+            }
+        }
+
+        // Navigation function
+        function navigateTo(section) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(section).classList.remove('hidden');
+            currentSection = section;
+            
+            // Announce section change
+            speak(`You are now in the ${section.replace('-', ' ')} section`);
+        }
+
+        // Text-to-speech function
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            synthesis.speak(utterance);
+        }
+
+        // Handle send email commands
+        function handleSendEmailCommands(command) {
+            if (command.includes('recipient')) {
+                document.getElementById('recipient').value = command.split('recipient')[1].trim();
+            } else if (command.includes('subject')) {
+                document.getElementById('subject').value = command.split('subject')[1].trim();
+            } else if (command.includes('message')) {
+                document.getElementById('message').value = command.split('message')[1].trim();
+            } else if (command.includes('send')) {
+                document.getElementById('emailForm').submit();
+            } else if (command.includes('back')) {
+                navigateTo('main-menu');
+            }
+        }
+
+        // Handle read email commands
+        function handleReadEmailCommands(command) {
+            if (command.includes('read next')) {
+                // Implement read next email functionality
+            } else if (command.includes('reply')) {
+                // Implement reply functionality
+            } else if (command.includes('delete')) {
+                // Implement delete functionality
+            } else if (command.includes('back')) {
+                navigateTo('main-menu');
+            }
+        }
+
+        // Handle trash commands
+        function handleTrashCommands(command) {
+            if (command.includes('recover')) {
+                // Implement recover functionality
+            } else if (command.includes('delete')) {
+                // Implement permanent delete functionality
+            } else if (command.includes('back')) {
+                navigateTo('main-menu');
+            }
+        }
+
+        // Handle speech recognition errors
+        function handleSpeechError(event) {
+            console.error('Speech recognition error:', event.error);
+            speak("Sorry, there was an error. Please try again.");
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeSpeech();
+            
+            document.getElementById('startButton').addEventListener('click', () => {
+                recognition.start();
+                document.getElementById('startButton').classList.add('listening');
+                speak("Voice control activated. Please state your command.");
+            });
+
+            // Sample email data (replace with actual API calls)
+            const sampleEmails = [
+                {
+                    from: 'sender@example.com',
+                    subject: 'Meeting Tomorrow',
+                    content: 'Hello, let\'s meet tomorrow at 2 PM.'
+                },
+                // Add more sample emails
+            ];
+
+            // Populate email list
+            const emailList = document.getElementById('emailList');
+            sampleEmails.forEach(email => {
+                const div = document.createElement('div');
+                div.className = 'border p-4 rounded-lg';
+                div.innerHTML = `
+                    <h3 class="font-bold">${email.subject}</h3>
+                    <p class="text-gray-600">${email.from}</p>
+                    <p>${email.content}</p>
+                    <div class="mt-2">
+                        <button class="bg-blue-500 text-white px-4 py-1 rounded mr-2">Reply</button>
+                        <button class="bg-red-500 text-white px-4 py-1 rounded">Delete</button>
+                    </div>
+                `;
+                emailList.appendChild(div);
+            });
+        });
+
+        // Form submission handler
+        document.getElementById('emailForm')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            speak("Email sent successfully");
+            navigateTo('main-menu');
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
